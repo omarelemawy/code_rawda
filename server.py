@@ -1,21 +1,37 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import pandas as pd
-import uvicorn
-from flask import Flask, request, jsonify
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+# تفعيل الـ CORS لو بتتعامل مع Flutter
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # تحميل الداتا
 courses = pd.read_csv("udemy_courses_dataset.csv")
 courses.fillna('', inplace=True)
 
-# شكل البيانات اللي هيبعتها المستخدم
+feedback_store = []
+
 class Answers(BaseModel):
     webDevelopment: bool
     databases: bool
     mobileDevelopment: bool
     algorithms: bool
+
+class Feedback(BaseModel):
+    course_title: str
+    useful: bool
+
+@app.get("/")
+def read_root():
+    return {"message": "Course Recommendation API is Live 🚀"}
 
 @app.post("/recommendations")
 def recommend_courses(answers: Answers):
@@ -25,14 +41,13 @@ def recommend_courses(answers: Answers):
         score = 0
         title = str(course['course_title']).lower()
 
-        
-        if answers.webDevelopment and ("web" in title or "frontend" in title or "react" in title or "javascript" in title):
+        if answers.webDevelopment and any(keyword in title for keyword in ["web", "frontend", "react", "javascript"]):
             score += 1
-        if answers.databases and ("database" in title or "sql" in title or "mongodb" in title or "mysql" in title):
+        if answers.databases and any(keyword in title for keyword in ["database", "sql", "mongodb", "mysql"]):
             score += 1
-        if answers.mobileDevelopment and ("android" in title or "ios" in title or "flutter" in title or "mobile" in title):
+        if answers.mobileDevelopment and any(keyword in title for keyword in ["android", "ios", "flutter", "mobile"]):
             score += 1
-        if answers.algorithms and ("algorithm" in title or "data structure" in title or "algorithms" in title):
+        if answers.algorithms and any(keyword in title for keyword in ["algorithm", "data structure", "algorithms"]):
             score += 1
 
         if score > 0:
@@ -42,31 +57,11 @@ def recommend_courses(answers: Answers):
                 "score": score
             })
 
-    # ترتيب حسب السكور
     recommendations = sorted(recommendations, key=lambda x: x['score'], reverse=True)
+    return recommendations[:10]
 
-    return recommendations[:10]  # نرجع أفضل 10 كورسات
-
-@app.get("/")
-def read_root():
-    return {"message": "Course Recommendation API is Live 🚀"}
-
-if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
-
-
-
-
-app = Flask(__name__)
-
-feedback_store = []
-
-@app.route('/feedback', methods=['POST'])
-def feedback():
-    data = request.json
-    feedback_store.append({
-        "course_title": data['course_title'],
-        "useful": data['useful']
-    })
-    print("Feedback received:", data)
-    return jsonify({"message": "Feedback recorded!"})
+@app.post("/feedback")
+def receive_feedback(feedback: Feedback):
+    feedback_store.append(feedback.dict())
+    print("Feedback received:", feedback.dict())
+    return {"message": "Feedback recorded!"}
