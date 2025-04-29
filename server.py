@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import pandas as pd
 import uvicorn
+from flask import Flask, request, jsonify
 
 app = FastAPI()
 
@@ -52,3 +53,20 @@ def read_root():
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+
+
+
+
+app = Flask(__name__)
+
+feedback_store = []
+
+@app.route('/feedback', methods=['POST'])
+def feedback():
+    data = request.json
+    feedback_store.append({
+        "course_title": data['course_title'],
+        "useful": data['useful']
+    })
+    print("Feedback received:", data)
+    return jsonify({"message": "Feedback recorded!"})
